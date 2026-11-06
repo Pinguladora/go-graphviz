@@ -13,9 +13,7 @@ import (
 
 	"github.com/disintegration/imaging"
 	"github.com/flopp/go-findfont"
-	"github.com/fogleman/gg"
 	"github.com/goccy/go-graphviz/internal/wasm"
-	"github.com/golang/freetype/truetype"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/gofont/goregular"
 	"golang.org/x/image/font/opentype"
@@ -31,7 +29,7 @@ var (
 
 type ImageRenderer struct {
 	*DefaultRenderEngine
-	ctx *gg.Context
+	ctx *imageCanvas
 }
 
 func (r *ImageRenderer) toX(job *Job, x float64) float64 {
@@ -43,7 +41,7 @@ func (r *ImageRenderer) toY(job *Job, y float64) float64 {
 }
 
 func (r *ImageRenderer) BeginPage(ctx context.Context, job *Job) error {
-	gctx := gg.NewContext(int(job.Width()), int(job.Height()))
+	gctx := newImageCanvas(int(job.Width()), int(job.Height()))
 	translation := job.Translation()
 	gctx.Translate(r.toX(job, translation.X()), r.toY(job, -translation.Y()))
 	r.ctx = gctx
@@ -144,7 +142,7 @@ func (r *ImageRenderer) TextSpan(ctx context.Context, job *Job, p *PointFloat, s
 	}
 	r.ctx.SetFontFace(face)
 	y := r.toY(job, p.Y()+span.YOffsetCenterLine()+span.YOffsetLayout())
-	r.ctx.DrawStringAnchored(span.Text(), p.X(), -y, 0, 0)
+	r.ctx.DrawString(span.Text(), p.X(), -y)
 	return nil
 }
 
@@ -217,13 +215,14 @@ func (r *ImageRenderer) lookupFontFromTTFFile(fontName string, fontSize float64,
 	if err != nil {
 		return nil, nil
 	}
-	ft, err := truetype.Parse(fontData)
+	ft, err := opentype.Parse(fontData)
 	if err != nil {
 		return nil, err
 	}
-	return truetype.NewFace(ft, &truetype.Options{
+	return opentype.NewFace(ft, &opentype.FaceOptions{
 		Size: fontSize,
-	}), nil
+		DPI:  72,
+	})
 }
 
 func (r *ImageRenderer) lookupFontFromTTCFile(fontName string, fontSize float64, dpi *PointFloat, fontPath string) (font.Face, error) {
@@ -261,13 +260,14 @@ func (r *ImageRenderer) lookupFontFromTTCFile(fontName string, fontSize float64,
 }
 
 func (r *ImageRenderer) defaultFontFace(ctx context.Context, job *Job, font *TextFont) (font.Face, error) {
-	ft, err := truetype.Parse(goregular.TTF)
+	ft, err := opentype.Parse(goregular.TTF)
 	if err != nil {
 		return nil, err
 	}
-	return truetype.NewFace(ft, &truetype.Options{
+	return opentype.NewFace(ft, &opentype.FaceOptions{
 		Size: font.Size() * job.Zoom(),
-	}), nil
+		DPI:  72,
+	})
 }
 
 func (r *ImageRenderer) Ellipse(ctx context.Context, job *Job, p []*PointFloat, filled bool) error {
@@ -400,13 +400,13 @@ func (r *ImageRenderer) LoadImage(ctx context.Context, job *Job, shape *UserShap
 			yPAD := defaultYPAD / 2.0
 			posX := (topLeftX + xPAD) * job.Scale().X()
 			posY := (topLeftY + yPAD) * job.Scale().Y()
-			r.ctx.DrawImageAnchored(img, int(posX), -int(posY), 0, 1)
+			r.ctx.DrawImageBottomLeft(img, int(posX), -int(posY))
 			return nil
 		}
 	}
 	posX := topLeftX * job.Scale().X()
 	posY := topLeftY * job.Scale().Y()
-	r.ctx.DrawImageAnchored(img, int(posX), -int(posY), 0, 1)
+	r.ctx.DrawImageBottomLeft(img, int(posX), -int(posY))
 	return nil
 }
 

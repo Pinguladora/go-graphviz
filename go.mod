@@ -6,8 +6,6 @@ require (
 	github.com/corona10/goimagehash v1.1.0
 	github.com/disintegration/imaging v1.6.2
 	github.com/flopp/go-findfont v0.1.0
-	github.com/fogleman/gg v1.3.0
-	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0
 	github.com/tetratelabs/wazero v1.10.1
 	golang.org/x/image v0.21.0
 )
