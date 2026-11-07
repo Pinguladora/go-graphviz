@@ -7,13 +7,14 @@ import (
 	"image"
 	"image/jpeg"
 	"io"
+	"math"
 	"os"
 	"strings"
 	"sync"
 
-	"github.com/disintegration/imaging"
 	"github.com/flopp/go-findfont"
 	"github.com/goccy/go-graphviz/internal/wasm"
+	"golang.org/x/image/draw"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/gofont/goregular"
 	"golang.org/x/image/font/opentype"
@@ -395,7 +396,7 @@ func (r *ImageRenderer) LoadImage(ctx context.Context, job *Job, shape *UserShap
 			bottomRightY := bf.UR().Y()
 			width := bottomRightX - topLeftX
 			height := bottomRightY - topLeftY
-			img = imaging.Resize(img, int(width), int(height), imaging.Lanczos)
+			img = scaledImage(img, int(width), int(height))
 			xPAD := defaultXPAD / 2.0
 			yPAD := defaultYPAD / 2.0
 			posX := (topLeftX + xPAD) * job.Scale().X()
@@ -408,6 +409,25 @@ func (r *ImageRenderer) LoadImage(ctx context.Context, job *Job, shape *UserShap
 	posY := topLeftY * job.Scale().Y()
 	r.ctx.DrawImageBottomLeft(img, int(posX), -int(posY))
 	return nil
+}
+
+// lanczos is the Lanczos-3 filter, sinc(t) * sinc(t/3) for t in [0, 3).
+var lanczos = &draw.Kernel{Support: 3, At: func(t float64) float64 {
+	if t == 0 {
+		return 1
+	}
+	return 3 * math.Sin(math.Pi*t) * math.Sin(math.Pi*t/3) / (math.Pi * math.Pi * t * t)
+}}
+
+// scaledImage returns img scaled to width x height with a Lanczos-3 filter,
+// or an empty image if the size has no area.
+func scaledImage(img image.Image, width, height int) image.Image {
+	if width <= 0 || height <= 0 {
+		return &image.NRGBA{}
+	}
+	scaled := image.NewNRGBA(image.Rect(0, 0, width, height))
+	lanczos.Scale(scaled, scaled.Bounds(), img, img.Bounds(), draw.Src, nil)
+	return scaled
 }
 
 type FontLoader func(ctx context.Context, job *Job, font *TextFont) (font.Face, error)
